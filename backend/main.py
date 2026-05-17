@@ -11,6 +11,7 @@ from services.enrichment import enrich_company
 from services.ai_service import generate_ai_insights
 from services.report import generate_pdf_report
 from services.email_service import send_audit_email
+from services.google_integration import append_to_sheet, upload_to_drive
 
 app = FastAPI(title="SimpliFiQ Audit API")
 
@@ -74,12 +75,21 @@ async def process_lead_workflow(lead_dict: dict):
         print("📄 Generating PDF with Playwright...")
         file_name = await generate_pdf_report(lead_dict, enriched, ai_insights)
 
-        # 4. Send Email (non-critical)
+        # 4. Save to Google Drive
+        print("☁️ Archiving PDF to Google Drive...")
+        pdf_full_path = str(REPORTS_DIR / file_name)
+        upload_to_drive(file_name, pdf_full_path)
+
+        # 5. Send Email (non-critical)
         print("📧 Sending email via Resend...")
         try:
             await send_audit_email(lead_dict, file_name)
         except Exception as e:
             print(f"⚠️  Email failed (non-critical): {e}")
+
+        # 6. Log to Google Sheets
+        print("📊 Logging to Google Sheets...")
+        append_to_sheet(lead_dict, "Completed")
 
         lead_status[email] = {"status": "done", "file_name": file_name, "error": None}
         print(f"✅ Workflow complete for {email}. File: {file_name}")
@@ -89,6 +99,8 @@ async def process_lead_workflow(lead_dict: dict):
         print(f"❌ Workflow error for {email}: {e}")
         traceback.print_exc()
         lead_status[email] = {"status": "error", "file_name": None, "error": str(e)}
+        # Log failure to Google Sheets
+        append_to_sheet(lead_dict, f"Failed: {str(e)[:100]}")
 
 
 if __name__ == "__main__":
