@@ -1,91 +1,99 @@
-# SimpliFiQ — AI Software Developer Intern Assessment
+# SimpliFiQ — AI-Powered Web Audit Tool
 
-A full-stack application that automates lead capture → website enrichment → PDF report generation → email delivery.
+An automated lead audit pipeline: submit a company website → AI-generated PDF report → emailed to the lead automatically.
+
+---
+
+## How It Works
+
+```
+[React Form]
+    │
+    ▼ POST /api/leads  (202 Accepted — instant)
+[FastAPI Background Task]
+    │
+    ├─ 1. Scrape website  (httpx → Playwright fallback)
+    ├─ 2. AI analysis     (Google Gemini 1.5 Flash)
+    ├─ 3. Generate PDF    (Playwright headless Chrome)
+    └─ 4. Send email      (Resend → Gmail SMTP → log fallback)
+
+[Frontend polls /api/report-status every 5s]
+    │
+    └─ Shows PDF preview + Download button when done
+```
 
 ---
 
 ## Tech Stack
+
 | Layer | Technology |
 |---|---|
-| **Frontend** | React (Vite), Vanilla CSS (glassmorphism), React Hook Form |
-| **Backend** | Node.js, Express, Cheerio (scraping), PDFKit (PDF), Nodemailer (email) |
-| **Bonus** | Google Sheets API logging (with graceful fallback) |
+| **Frontend** | React 19 (Vite), Vanilla CSS, React Hook Form, Axios |
+| **Backend** | Python FastAPI, Uvicorn |
+| **Scraping** | httpx, BeautifulSoup4, Playwright Chromium |
+| **AI** | Google Gemini 1.5 Flash |
+| **PDF** | Playwright (HTML → PDF via headless Chrome) |
+| **Email** | Resend API / Gmail SMTP fallback |
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
-### Step 1 — Configure Email (REQUIRED to receive real emails)
+### 1. Configure Environment Variables
 
-Open `backend/.env` and fill in your Gmail credentials:
+Create `backend/.env` (copy from `backend/.env.example`):
 
 ```env
-SMTP_USER=your_gmail_address@gmail.com
-SMTP_PASS=your_16_char_app_password
-PORT=5000
+GEMINI_API_KEY=your_key_from_aistudio.google.com
+RESEND_API_KEY=your_key_from_resend.com
+RESEND_FROM_EMAIL=you@yourverifieddomain.com
+
+# OR use Gmail instead of Resend:
+GMAIL_USER=your_gmail@gmail.com
+GMAIL_APP_PASSWORD=your_16char_app_password
 ```
 
-> **How to get a Gmail App Password:**
-> 1. Go to [myaccount.google.com/security](https://myaccount.google.com/security)
-> 2. Enable **2-Step Verification** (required)
-> 3. Search **"App Passwords"** → App: **Mail** → Generate
-> 4. Copy the 16-character password (e.g. `abcd efgh ijkl mnop`)  
->    Paste it without spaces: `SMTP_PASS=abcdefghijklmnop`
-
----
-
-### Step 2 — Run the Backend
+### 2. Start the Backend
 
 ```bash
 cd backend
-npm install
-node server.js
+pip install -r requirements.txt
+playwright install chromium
+python main.py
+# Runs on http://localhost:8000
 ```
-Server starts on **http://localhost:5000**
 
----
-
-### Step 3 — Run the Frontend
+### 3. Start the Frontend
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# Runs on http://localhost:5173
 ```
-Opens on **http://localhost:5173**
 
 ---
 
-## Workflow Architecture
+## API Endpoints
 
-```
-[React Form] 
-    │
-    ▼ POST /api/leads
-[Express Server] ─── 202 Accepted (instant response)
-    │
-    ▼ async workflow
-[Enrichment] ── cheerio scrapes company website metadata
-    │
-    ▼
-[PDF Generator] ── pdfkit creates branded audit report
-    │
-    ▼
-[Email Service] ── nodemailer sends PDF to prospect's email
-    │
-    ▼
-[Sheets Logger] ── logs to Google Sheets OR leads_log.txt fallback
-```
-
-## Fail-Safe Design
-- **Website scraping** — wrapped in try/catch; uses fallback data if website is unreachable
-- **Email delivery** — falls back to Ethereal test account if `.env` credentials are missing (prints preview URL to console)
-- **Google Sheets** — falls back to `leads_log.txt` if no GCP credentials are configured
-- **422 errors** — field validation on both frontend (React Hook Form) and backend
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | Health check |
+| POST | `/api/leads` | Submit lead → start workflow |
+| GET | `/api/report-status?email=...` | Poll for completion |
+| GET | `/reports/{filename}` | Download generated PDF |
+| GET | `/docs` | Swagger UI (auto-generated) |
 
 ---
 
-## Bonus Features
-- ✅ **Google Sheets logging** — implemented in `backend/services/sheets.js`  
-- ✅ **Local fallback logging** — `leads_log.txt` created automatically  
-- ✅ **PDF archiving** — reports saved to `backend/reports/`
+## Key Design Decisions
+
+- **Async background tasks** — heavy work (scraping, AI, PDF) runs after 202 response; client polls for status
+- **Two-layer scraping** — httpx for speed, Playwright for JS-rendered sites 
+- **Three-tier email fallback** — Resend → Gmail SMTP → local log; never crashes
+- **AI fallback** — rule-based scoring when Gemini is unavailable; report always generates
+- **HTML-to-PDF** — uses Chrome's print engine for pixel-perfect branded reports
+
+---
+
+> See **`PROJECT_EXPLANATION.md`** for a complete, interview-ready breakdown of every component, technology choice, and design decision.

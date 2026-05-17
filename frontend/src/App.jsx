@@ -1,206 +1,211 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
 
-const API = 'http://localhost:8000';
+// Lucide icon approximations using basic SVGs for simplicity & aesthetics
+const UserIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
+const MailIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>;
+const BriefcaseIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>;
+const GlobeIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
+const ArrowRightIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>;
+const CheckCircleIcon = () => <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
+const DownloadIcon = () => <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
 
-// ── Inline SVG Icons ──────────────────────────────────────────
-function UserIcon() {
-  return <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
-}
-function MailIcon() {
-  return <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>;
-}
-function BuildingIcon() {
-  return <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2" /><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" /></svg>;
-}
-function GlobeIcon() {
-  return <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>;
-}
-function SendIcon() {
-  return <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
-}
-function CheckIcon() {
-  return <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg>;
-}
-function DownloadIcon() {
-  return <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
-}
-
-// ── PDF Viewer Component ──────────────────────────────────────
-function PdfViewer({ pdfUrl, companyName }) {
-  return (
-    <div className="pdf-section animate-fade-in">
-      <div className="pdf-header">
-        <CheckIcon />
-        <div>
-          <p className="pdf-title">Report Ready!</p>
-          <p className="pdf-subtitle">Audit report for <strong>{companyName}</strong> · Also sent to your email</p>
-        </div>
-      </div>
-      <div className="pdf-embed-wrapper">
-        <iframe
-          src={pdfUrl}
-          className="pdf-embed"
-          title="Audit Report"
-        />
-      </div>
-      <a href={pdfUrl} download className="download-btn">
-        <DownloadIcon />
-        Download PDF
-      </a>
-    </div>
-  );
-}
-
-// ── Processing Banner ─────────────────────────────────────────
-function ProcessingBanner() {
-  return (
-    <div className="alert alert-info animate-fade-in">
-      <span className="spinner-blue" />
-      <p>Generating your personalized audit report… this usually takes 10–20 seconds.</p>
-    </div>
-  );
-}
-
-// ── Main App ─────────────────────────────────────────────────
 function App() {
-  const { register, handleSubmit, formState: { errors }, reset, getValues } = useForm();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [phase, setPhase] = useState('form'); // 'form' | 'processing' | 'done' | 'error'
+  const { register, handleSubmit, reset, formState: { errors } } = useForm();
+
+  const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState("");
+
+  const [polling, setPolling] = useState(false);
+  const [pollEmail, setPollEmail] = useState("");
   const [pdfUrl, setPdfUrl] = useState(null);
-  const [submittedData, setSubmittedData] = useState(null);
-  const pollRef = useRef(null);
 
-  // Polling logic
-  const startPolling = (email) => {
-    pollRef.current = setInterval(async () => {
-      try {
-        const { data } = await axios.get(`${API}/api/report-status?email=${encodeURIComponent(email)}`);
-        if (data.status === 'done' && data.pdfUrl) {
-          clearInterval(pollRef.current);
-          setPdfUrl(data.pdfUrl);
-          setPhase('done');
-        } else if (data.status === 'error') {
-          clearInterval(pollRef.current);
-          setPhase('error');
+  useEffect(() => {
+    let intervalId;
+
+    if (polling && pollEmail) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await axios.get(`http://localhost:8000/api/report-status?email=${encodeURIComponent(pollEmail)}`);
+          const data = res.data;
+
+          if (data.status === "done" && data.pdfUrl) {
+            setPolling(false);
+            setPdfUrl(data.pdfUrl);
+          } else if (data.status === "error") {
+            setPolling(false);
+            setErrorText(data.error || "Generation failed.");
+          }
+        } catch (err) {
+          console.error("Polling error", err);
         }
-      } catch (e) {
-        console.error('Polling error:', e);
-      }
-    }, 2000); // poll every 2 seconds
-  };
+      }, 5000);
+    }
 
-  useEffect(() => () => clearInterval(pollRef.current), []); // cleanup on unmount
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [polling, pollEmail]);
 
   const onSubmit = async (data) => {
-    setIsSubmitting(true);
+    setLoading(true);
+    setErrorText("");
+    setPdfUrl(null);
+
     try {
-      await axios.post(`${API}/api/leads`, data);
-      setSubmittedData(data);
-      setPhase('processing');
-      startPolling(data.email);
-      reset();
+      await axios.post("http://localhost:8000/api/leads", data);
+      setPollEmail(data.email);
+      setPolling(true);
     } catch (err) {
       console.error(err);
-      setPhase('error');
+      setErrorText(err.response?.data?.detail || "Failed to start report generation.");
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
-  };
-
-  const handleReset = () => {
-    clearInterval(pollRef.current);
-    setPhase('form');
-    setPdfUrl(null);
-    setSubmittedData(null);
   };
 
   return (
     <div className="page">
-      <div className={`card ${phase === 'done' ? 'card-wide' : ''}`}>
-        <div className="card-body">
-
-          {/* ── Header ── */}
-          <div className="form-header">
-            <h1 className="form-title">Get Your Free Audit</h1>
-            <p className="form-subtitle">
-              Discover how AI can transform your business. Submit your details to receive a personalized report instantly.
-            </p>
-          </div>
-
-          {/* ── Phase: Error ── */}
-          {phase === 'error' && (
-            <div className="alert alert-error animate-fade-in" style={{ marginBottom: '1.25rem' }}>
-              <p>Something went wrong. Please try again.</p>
+      {!pdfUrl ? (
+        <div className="card animate-fade-in">
+          <div className="card-body">
+            <div className="form-header">
+              <h1 className="form-title">Simpli<span>FiQ</span></h1>
+              <p className="form-subtitle">AI-Powered Web Ecosystem Audits</p>
             </div>
-          )}
 
-          {/* ── Phase: Form ── */}
-          {(phase === 'form' || phase === 'error') && (
-            <form className="form" onSubmit={handleSubmit(onSubmit)}>
-              <div className="form-group">
-                <label className="form-label">Full Name</label>
-                <div className="input-wrapper">
-                  <span className="input-icon"><UserIcon /></span>
-                  <input type="text" className={`form-input${errors.name ? ' error' : ''}`} placeholder="John Doe"
-                    {...register('name', { required: 'Name is required' })} />
-                </div>
-                {errors.name && <span className="error-text">{errors.name.message}</span>}
+            {errorText && (
+              <div className="alert alert-error">
+                <strong>Generation Error:</strong> {errorText}
               </div>
+            )}
 
-              <div className="form-group">
-                <label className="form-label">Work Email</label>
-                <div className="input-wrapper">
-                  <span className="input-icon"><MailIcon /></span>
-                  <input type="email" className={`form-input${errors.email ? ' error' : ''}`} placeholder="john@company.com"
-                    {...register('email', { required: 'Email is required', pattern: { value: /^\S+@\S+\.\S+$/, message: 'Enter a valid email' } })} />
-                </div>
-                {errors.email && <span className="error-text">{errors.email.message}</span>}
+            {polling && (
+              <div className="alert alert-info">
+                <span className="spinner-blue"></span>
+                <strong style={{ display: 'block', fontSize: '1.1rem', marginBottom: '4px' }}>Analyzing Digital Presence</strong>
+                Scanning tech stack, scraping metadata, and generating AI insights. This usually takes 10-20 seconds...
               </div>
+            )}
 
-              <div className="form-group">
-                <label className="form-label">Company Name</label>
-                <div className="input-wrapper">
-                  <span className="input-icon"><BuildingIcon /></span>
-                  <input type="text" className={`form-input${errors.companyName ? ' error' : ''}`} placeholder="Acme Corp"
-                    {...register('companyName', { required: 'Company name is required' })} />
+            {!polling && (
+              <form onSubmit={handleSubmit(onSubmit)}>
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <div className="input-wrapper">
+                    <input
+                      className={`form-input ${errors.name ? 'error' : ''}`}
+                      placeholder="Jane Doe"
+                      {...register("name", { required: true })}
+                    />
+                    <div className="input-icon"><UserIcon /></div>
+                  </div>
+                  {errors.name && <span className="error-text">Name is required</span>}
                 </div>
-                {errors.companyName && <span className="error-text">{errors.companyName.message}</span>}
-              </div>
 
-              <div className="form-group">
-                <label className="form-label">Company Website</label>
-                <div className="input-wrapper">
-                  <span className="input-icon"><GlobeIcon /></span>
-                  <input type="text" className={`form-input${errors.website ? ' error' : ''}`} placeholder="example.com"
-                    {...register('website', { required: 'Website is required' })} />
+                <div className="form-group">
+                  <label className="form-label">Email Address</label>
+                  <div className="input-wrapper">
+                    <input
+                      type="email"
+                      className={`form-input ${errors.email ? 'error' : ''}`}
+                      placeholder="jane@company.com"
+                      {...register("email", { required: true })}
+                    />
+                    <div className="input-icon"><MailIcon /></div>
+                  </div>
+                  {errors.email && <span className="error-text">Email is required</span>}
                 </div>
-                {errors.website && <span className="error-text">{errors.website.message}</span>}
-              </div>
 
-              <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                {isSubmitting ? <><span className="spinner" />Submitting...</> : <><SendIcon />Request Free Audit</>}
-              </button>
-            </form>
-          )}
+                <div className="form-group">
+                  <label className="form-label">Company Name</label>
+                  <div className="input-wrapper">
+                    <input
+                      className={`form-input ${errors.companyName ? 'error' : ''}`}
+                      placeholder="Acme Corp"
+                      {...register("companyName", { required: true })}
+                    />
+                    <div className="input-icon"><BriefcaseIcon /></div>
+                  </div>
+                  {errors.companyName && <span className="error-text">Company name is required</span>}
+                </div>
 
-          {/* ── Phase: Processing ── */}
-          {phase === 'processing' && <ProcessingBanner />}
+                <div className="form-group">
+                  <label className="form-label">Company Website</label>
+                  <div className="input-wrapper">
+                    <input
+                      className={`form-input ${errors.website ? 'error' : ''}`}
+                      placeholder="https://acme.com"
+                      {...register("website", {
+                        required: true,
+                        pattern: /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/
+                      })}
+                    />
+                    <div className="input-icon"><GlobeIcon /></div>
+                  </div>
+                  {errors.website && <span className="error-text">Valid URL required</span>}
+                </div>
 
-          {/* ── Phase: Done — PDF Preview ── */}
-          {phase === 'done' && pdfUrl && (
-            <>
-              <PdfViewer pdfUrl={pdfUrl} companyName={submittedData?.companyName} />
-              <button className="new-audit-btn" onClick={handleReset}>← Submit Another Audit</button>
-            </>
-          )}
+                <button type="submit" disabled={loading} className="submit-btn">
+                  {loading ? <span className="spinner"></span> : <>Start Free Audit <ArrowRightIcon /></>}
+                </button>
+              </form>
+            )}
+          </div>
+          <div className="card-footer">
+            Powered by Gemini AI 1.5 Flash • Built for Growth
+          </div>
         </div>
+      ) : (
+        /* Report Result Page */
+        <div className="card card-wide animate-fade-in">
+          <div className="card-body">
+            <div className="pdf-section">
+              <div className="pdf-header">
+                <div><CheckCircleIcon /></div>
+                <div>
+                  <div className="pdf-title">Audit Successfully Generated</div>
+                  <div className="pdf-subtitle">A copy has been sent to <strong>{pollEmail}</strong> via Resend Email API.</div>
+                </div>
+              </div>
 
-        <div className="card-footer">
-          <p>🔒 Secure, automated process. Powered by SimpliFiQ.</p>
+              <div className="pdf-embed-wrapper">
+                <iframe
+                  src={`${pdfUrl}#view=FitH`}
+                  title="PDF Report"
+                  className="pdf-embed"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <a
+                  href={pdfUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="download-btn"
+                >
+                  <DownloadIcon /> Download PDF Report
+                </a>
+
+                <button
+                  onClick={() => {
+                    setPdfUrl(null);
+                    setPolling(false);
+                    setPollEmail("");
+                    setErrorText("");
+                    reset();
+                  }}
+                  className="new-audit-btn"
+                >
+                  ✦ Make Another Audit
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
