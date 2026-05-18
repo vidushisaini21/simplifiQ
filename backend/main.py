@@ -11,6 +11,8 @@ from services.enrichment import enrich_company
 from services.ai_service import generate_ai_insights
 from services.report import generate_pdf_report
 from services.email_service import send_audit_email
+from services.drive_service import upload_pdf_to_drive
+from services.sheets_service import log_lead_to_sheets
 
 app = FastAPI(title="SimpliFiQ Audit API")
 
@@ -60,33 +62,51 @@ async def report_status(email: str):
 async def process_lead_workflow(lead_dict: dict):
     email = lead_dict["email"]
     try:
-        print(f"\n🚀 Starting workflow for {email}")
+        print(f"\n[START] Starting workflow for {email}")
 
         # 1. Scrape
-        print("🔍 Scraping website data...")
+        print("[INFO] Scraping website data...")
         enriched = await enrich_company(lead_dict["website"])
 
         # 2. AI Insights
-        print("🤖 Calling Gemini for AI insights...")
+        print("[INFO] Calling Gemini for AI insights...")
         ai_insights = await generate_ai_insights(lead_dict, enriched)
 
         # 3. Generate PDF
-        print("📄 Generating PDF with Playwright...")
+        print("[INFO] Generating PDF with Playwright...")
         file_name = await generate_pdf_report(lead_dict, enriched, ai_insights)
 
-        # 4. Send Email (non-critical)
-        print("📧 Sending email via Resend...")
+        # 4. Google Drive Archiving (non-critical)
+        print("[INFO] Uploading to Google Drive...")
+        drive_link = None
+        try:
+            # We need a timestamp to match what report.py might use, or just pass the current time string 
+            import time
+            timestamp_str = str(int(time.time()))
+            drive_link = upload_pdf_to_drive(file_name, lead_dict["companyName"], timestamp_str)
+        except Exception as e:
+            print(f"[WARN] Drive upload failed (non-critical): {e}")
+
+        # 5. Google Sheets Logging (non-critical)
+        print("[INFO] Logging to Google Sheets...")
+        try:
+            log_lead_to_sheets(lead_dict, "success", drive_link)
+        except Exception as e:
+            print(f"[WARN] Sheets logging failed (non-critical): {e}")
+
+        # 6. Send Email (non-critical)
+        print("[INFO] Sending email via Resend...")
         try:
             await send_audit_email(lead_dict, file_name)
         except Exception as e:
-            print(f"⚠️  Email failed (non-critical): {e}")
+            print(f"[WARN] Email failed (non-critical): {e}")
 
         lead_status[email] = {"status": "done", "file_name": file_name, "error": None}
-        print(f"✅ Workflow complete for {email}. File: {file_name}")
+        print(f"[SUCCESS] Workflow complete for {email}. File: {file_name}")
 
     except Exception as e:
         import traceback
-        print(f"❌ Workflow error for {email}: {e}")
+        print(f"[ERROR] Workflow error for {email}: {e}")
         traceback.print_exc()
         lead_status[email] = {"status": "error", "file_name": None, "error": str(e)}
 
