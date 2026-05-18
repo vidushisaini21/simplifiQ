@@ -1,5 +1,5 @@
 # SimpliFiQ — Complete Project Explanation
-### Everything You Need to Explain This in an Interview
+
 
 ---
 
