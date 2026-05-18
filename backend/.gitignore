@@ -7,3 +7,4 @@ server_err.txt
 server_out.txt
 reports/*.pdf
 !reports/.gitkeep
+google-credentials.json
