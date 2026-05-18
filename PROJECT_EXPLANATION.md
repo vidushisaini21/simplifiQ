@@ -10,8 +10,10 @@
 1. **Scrapes** the company's website to extract real data (title, headings, technologies, social media links, contact info, etc.)
 2. **Sends** that data to **Google Gemini AI** to generate a professional, personalised business analysis
 3. **Generates** a beautiful, branded **PDF report** (cover page + 2 content pages)
-4. **Emails** the PDF to the user automatically (via Resend API or Gmail SMTP)
-5. **Displays** the PDF in-browser and lets the user **download** it or **start another audit**
+4. **Uploads** the PDF to Google Drive to create a shareable archive link
+5. **Logs** the lead information and Drive link into a Google Sheet
+6. **Emails** the PDF to the user automatically (via Resend API or Gmail SMTP)
+7. **Displays** the PDF in-browser and lets the user **download** it or **start another audit**
 
 The whole pipeline runs **asynchronously** — the frontend immediately gets a "202 Accepted" response and then polls for status every 5 seconds while the heavy work happens in the background.
 
@@ -32,6 +34,8 @@ Assignment/
 │       ├── enrichment.py     ← Website scraper (httpx + BeautifulSoup + Playwright)
 │       ├── ai_service.py     ← Google Gemini AI integration
 │       ├── report.py         ← HTML-to-PDF generator using Playwright
+│       ├── drive_service.py  ← Uploads PDF to Google Drive via Google API
+│       ├── sheets_service.py ← Appends lead data to Google Sheets via Google API
 │       └── email_service.py  ← Email sending (Resend → Gmail → log fallback)
 │
 ├── frontend/                 ← React + Vite app
@@ -63,6 +67,7 @@ Assignment/
 | **JS-heavy site fallback** | Playwright Chromium | Renders JavaScript before scraping (headless browser) |
 | **AI Engine** | Google Gemini 1.5 Flash | Fast, cheap, great at structured JSON output |
 | **PDF Generation** | Playwright (headless Chrome) | Renders full HTML/CSS to pixel-perfect PDF |
+| **Google APIs** | Google-API-Python-Client | Official SDK for Google Drive and Sheets integration |
 | **Email — Primary** | Resend API | Reliable transactional email with attachment support |
 | **Email — Fallback** | Gmail SMTP + App Password | Works when no Resend key is set |
 | **Email — Last Resort** | Local `email_log.txt` | Never crashes, always logs |
@@ -117,7 +122,18 @@ FASTAPI main.py
     │     ├── page.pdf(format="A4", print_background=True)
     │     └── Save as AuditReport_{CompanyName}_{timestamp}.pdf
     │
-    ├─ STEP 4: email_service.py → send_audit_email(lead, file_name)
+    ├─ STEP 4: drive_service.py → upload_pdf_to_drive(...)
+    │     ├── Read google-credentials.json from .env
+    │     ├── Upload PDF to target Google Drive folder
+    │     ├── Change file permissions to "anyone with link can view"
+    │     └── Returns: shareable web_view_link (gracefully returns None if quota error)
+    │
+    ├─ STEP 5: sheets_service.py → log_lead_to_sheets(...)
+    │     ├── Read google-credentials.json and sheet ID
+    │     ├── Build row: [Timestamp, Name, Email, Company, URL, Status, Drive Link]
+    │     └── Append row to Google Sheet (fails gracefully on error)
+    │
+    ├─ STEP 6: email_service.py → send_audit_email(lead, file_name)
     │     ├── Check RESEND_API_KEY → send via Resend with PDF attachment
     │     ├── else check GMAIL_USER + GMAIL_APP_PASSWORD → Gmail SMTP SSL
     │     └── else → log to email_log.txt (silent fallback, never crashes)
@@ -222,7 +238,21 @@ Playwright renders real HTML + CSS to PDF using Chrome's print engine. This mean
 
 ---
 
-## 9. Email Service Deep Dive — `email_service.py`
+## 9. Google API Integrations — `drive_service.py` & `sheets_service.py`
+
+**Why Service Accounts instead of OAuth?**
+For an automated backend task, popping up a Google Login screen is impossible. Service Accounts act as a "bot" user that authenticates silently using a `.json` key file. 
+
+**Google Drive Archiving:**
+Uploads the generated PDF and immediately uses the `permissions().create()` endpoint to set the file to `"anyone with link can view"`. 
+*Handling API Limits*: Google recently restricted free-tier service accounts from having storage quotas. If the upload gets a 403 Quota Exceeded error, the `try/except` block catches it gracefully, logs the error, and lets the pipeline continue without breaking the app.
+
+**Google Sheets Logging:**
+Uses the `spreadsheets().values().append()` endpoint with `valueInputOption='USER_ENTERED'` to automatically insert a new row at the bottom of the lead tracking sheet. This acts as a lightweight, instant CRM for the business owner.
+
+---
+
+## 10. Email Service Deep Dive — `email_service.py`
 
 **Three-tier fallback chain:**
 
@@ -323,8 +353,13 @@ GEMINI_API_KEY=...      # Google AI Studio key for Gemini 1.5 Flash
 RESEND_API_KEY=...      # Resend transactional email API key
 RESEND_FROM_EMAIL=...   # Must be a verified domain sender in Resend
 
-GMAIL_USER=...          # Your Gmail address (fallback email sender)
+RESEND_USER=...          # Your Gmail address (fallback email sender)
 GMAIL_APP_PASSWORD=...  # 16-char App Password from Google Account settings
+
+# Google Integrations
+GOOGLE_SERVICE_ACCOUNT_JSON=google-credentials.json
+GOOGLE_SHEET_ID=...
+GOOGLE_DRIVE_FOLDER_ID=...
 ```
 
 **Security**: `.env` is in `.gitignore` — it is never pushed to GitHub. The `.env.example` file shows what keys are needed without real values.

@@ -15,7 +15,9 @@ An automated lead audit pipeline: submit a company website → AI-generated PDF 
     ├─ 1. Scrape website  (httpx → Playwright fallback)
     ├─ 2. AI analysis     (Google Gemini 1.5 Flash)
     ├─ 3. Generate PDF    (Playwright headless Chrome)
-    └─ 4. Send email      (Resend → Gmail SMTP → log fallback)
+    ├─ 4. Google Drive    (Upload PDF + set shareable link)
+    ├─ 5. Google Sheets   (Log lead data + Drive link)
+    └─ 6. Send email      (Resend → Gmail SMTP → log fallback)
 
 [Frontend polls /api/report-status every 5s]
     │
@@ -33,6 +35,7 @@ An automated lead audit pipeline: submit a company website → AI-generated PDF 
 | **Scraping** | httpx, BeautifulSoup4, Playwright Chromium |
 | **AI** | Google Gemini 1.5 Flash |
 | **PDF** | Playwright (HTML → PDF via headless Chrome) |
+| **Google APIs** | Drive API (v3), Sheets API (v4) via Service Account |
 | **Email** | Resend API / Gmail SMTP fallback |
 
 ---
@@ -51,6 +54,11 @@ RESEND_FROM_EMAIL=you@yourverifieddomain.com
 # OR use Gmail instead of Resend:
 GMAIL_USER=your_gmail@gmail.com
 GMAIL_APP_PASSWORD=your_16char_app_password
+
+# ── Google Integrations (Drive & Sheets) ──
+GOOGLE_SERVICE_ACCOUNT_JSON=google-credentials.json
+GOOGLE_SHEET_ID=your_google_sheet_id
+GOOGLE_DRIVE_FOLDER_ID=your_google_drive_folder_id
 ```
 
 ### 2. Start the Backend
