@@ -90,7 +90,7 @@ def _send_via_gmail(lead: dict, file_name: str, gmail_user: str, gmail_pass: str
     msg.attach(attachment)
 
     # Send via Gmail SMTP SSL
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
         server.login(gmail_user, gmail_pass)
         server.sendmail(gmail_user, to_email, msg.as_string())
 
