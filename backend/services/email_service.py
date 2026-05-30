@@ -38,11 +38,16 @@ async def send_audit_email(lead: dict, file_name: str):
             return
         except Exception as e:
             print(f"  ⚠️  Gmail SMTP failed: {e} — logging to file...")
+            print("  💡 Tip: If you are deployed on Render's free tier, outbound SMTP ports (465/587) are blocked.")
+            print("     To send emails, use Resend API with a verified custom domain, or upgrade Render to a paid plan.")
 
     # ── 3. Local log fallback ──────────────────────────────────
     _log_fallback(lead, file_name)
-    print("  📝 No email credentials set — logged to email_log.txt")
-    print("  👉 Set GMAIL_USER + GMAIL_APP_PASSWORD in .env to enable email")
+    if (resend_key and not resend_key.startswith("your_")) or (gmail_user and gmail_pass and not gmail_pass.startswith("your_")):
+        print("  📝 Email sending failed — logged details to email_log.txt")
+    else:
+        print("  📝 No email credentials set — logged details to email_log.txt")
+        print("  👉 Set GMAIL_USER + GMAIL_APP_PASSWORD in .env to enable email")
 
 
 async def _send_via_resend(lead: dict, file_name: str, api_key: str):
