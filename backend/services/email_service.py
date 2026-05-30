@@ -98,7 +98,7 @@ def _send_via_gmail(lead: dict, file_name: str, gmail_user: str, gmail_pass: str
 
 
 def _log_fallback(lead: dict, file_name: str):
-    with open("email_log.txt", "a") as f:
+    with open("email_log.txt", "a", encoding="utf-8") as f:
         f.write(
             f"{datetime.now().isoformat()} | {lead['name']} | "
             f"{lead['email']} | {lead['companyName']} | {file_name}\n"

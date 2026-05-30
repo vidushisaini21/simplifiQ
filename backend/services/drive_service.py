@@ -14,21 +14,33 @@ def upload_pdf_to_drive(file_name: str, company_name: str, timestamp_str: str) -
     Fails gracefully if credentials or folder ID are missing or invalid.
     """
     try:
+        import json
         service_account_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
         folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+        service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_VALUE")
 
-        if not service_account_file or not os.path.exists(service_account_file):
-            print("  [WARN] Google Drive skipping: GOOGLE_SERVICE_ACCOUNT_JSON not set or invalid path.")
-            return None
-        
         if not folder_id:
             print("  [WARN] Google Drive skipping: GOOGLE_DRIVE_FOLDER_ID not set.")
             return None
 
-        # Authenticate
-        creds = service_account.Credentials.from_service_account_file(
-            service_account_file, scopes=SCOPES
-        )
+        creds = None
+        if service_account_file and os.path.exists(service_account_file):
+            creds = service_account.Credentials.from_service_account_file(
+                service_account_file, scopes=SCOPES
+            )
+        elif service_account_json:
+            try:
+                info = json.loads(service_account_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    info, scopes=SCOPES
+                )
+            except Exception as e:
+                print(f"  [WARN] Google Drive: Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON_VALUE: {e}")
+
+        if not creds:
+            print("  [WARN] Google Drive skipping: No valid credentials found (file missing and env var empty/invalid).")
+            return None
+
         service = build('drive', 'v3', credentials=creds)
 
         pdf_path = REPORTS_DIR / file_name

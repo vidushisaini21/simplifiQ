@@ -12,21 +12,33 @@ def log_lead_to_sheets(lead: dict, report_status: str, drive_link: str | None = 
     Fails gracefully if credentials or sheet ID are missing or invalid.
     """
     try:
+        import json
         service_account_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
         sheet_id = os.getenv("GOOGLE_SHEET_ID")
+        service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_VALUE")
 
-        if not service_account_file or not os.path.exists(service_account_file):
-            print("  [WARN] Google Sheets skipping: GOOGLE_SERVICE_ACCOUNT_JSON not set or invalid path.")
-            return
-        
         if not sheet_id:
             print("  [WARN] Google Sheets skipping: GOOGLE_SHEET_ID not set.")
             return
 
-        # Authenticate
-        creds = service_account.Credentials.from_service_account_file(
-            service_account_file, scopes=SCOPES
-        )
+        creds = None
+        if service_account_file and os.path.exists(service_account_file):
+            creds = service_account.Credentials.from_service_account_file(
+                service_account_file, scopes=SCOPES
+            )
+        elif service_account_json:
+            try:
+                info = json.loads(service_account_json)
+                creds = service_account.Credentials.from_service_account_info(
+                    info, scopes=SCOPES
+                )
+            except Exception as e:
+                print(f"  [WARN] Google Sheets: Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON_VALUE: {e}")
+
+        if not creds:
+            print("  [WARN] Google Sheets skipping: No valid credentials found (file missing and env var empty/invalid).")
+            return
+
         service = build('sheets', 'v4', credentials=creds)
 
         # Prepare row data: Timestamp, Name, Email, Company, Website URL, Report Status, PDF Drive Link
