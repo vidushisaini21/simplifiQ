@@ -16,12 +16,15 @@ REPORTS_DIR = Path("reports")
 
 async def send_audit_email(lead: dict, file_name: str):
     """
-    Try Resend first (if key set), then fall back to Gmail SMTP,
-    then finally log to email_log.txt.
+    Try Resend first (if key set), then fall back to Gmail REST API (if OAuth config set),
+    then fall back to Gmail SMTP, and finally log to email_log.txt.
     """
-    resend_key  = os.getenv("RESEND_API_KEY", "")
-    gmail_user  = os.getenv("GMAIL_USER", "")
-    gmail_pass  = os.getenv("GMAIL_APP_PASSWORD", "")  # Gmail App Password (not account password)
+    resend_key       = os.getenv("RESEND_API_KEY", "")
+    gmail_client_id  = os.getenv("GMAIL_CLIENT_ID", "")
+    gmail_client_sec = os.getenv("GMAIL_CLIENT_SECRET", "")
+    gmail_refresh    = os.getenv("GMAIL_REFRESH_TOKEN", "")
+    gmail_user       = os.getenv("GMAIL_USER", "")
+    gmail_pass       = os.getenv("GMAIL_APP_PASSWORD", "")  # Gmail App Password (not account password)
 
     # ── 1. Resend API ──────────────────────────────────────────
     if resend_key and not resend_key.startswith("your_"):
@@ -29,9 +32,17 @@ async def send_audit_email(lead: dict, file_name: str):
             await _send_via_resend(lead, file_name, resend_key)
             return
         except Exception as e:
-            print(f"  ⚠️  Resend failed: {e} — trying Gmail SMTP...")
+            print(f"  ⚠️  Resend failed: {e} — trying Gmail REST API...")
 
-    # ── 2. Gmail SMTP fallback ─────────────────────────────────
+    # ── 2. Gmail REST API ──────────────────────────────────────
+    if gmail_client_id and gmail_client_sec and gmail_refresh and gmail_user:
+        try:
+            await _send_via_gmail_api(lead, file_name, gmail_client_id, gmail_client_sec, gmail_refresh, gmail_user)
+            return
+        except Exception as e:
+            print(f"  ⚠️  Gmail REST API failed: {e} — trying Gmail SMTP...")
+
+    # ── 3. Gmail SMTP fallback ─────────────────────────────────
     if gmail_user and gmail_pass and not gmail_pass.startswith("your_"):
         try:
             _send_via_gmail(lead, file_name, gmail_user, gmail_pass)
@@ -41,13 +52,18 @@ async def send_audit_email(lead: dict, file_name: str):
             print("  💡 Tip: If you are deployed on Render's free tier, outbound SMTP ports (465/587) are blocked.")
             print("     To send emails, use Resend API with a verified custom domain, or upgrade Render to a paid plan.")
 
-    # ── 3. Local log fallback ──────────────────────────────────
+    # ── 4. Local log fallback ──────────────────────────────────
     _log_fallback(lead, file_name)
-    if (resend_key and not resend_key.startswith("your_")) or (gmail_user and gmail_pass and not gmail_pass.startswith("your_")):
+    has_credentials = (
+        (resend_key and not resend_key.startswith("your_")) or
+        (gmail_client_id and gmail_client_sec and gmail_refresh) or
+        (gmail_user and gmail_pass and not gmail_pass.startswith("your_"))
+    )
+    if has_credentials:
         print("  📝 Email sending failed — logged details to email_log.txt")
     else:
         print("  📝 No email credentials set — logged details to email_log.txt")
-        print("  👉 Set GMAIL_USER + GMAIL_APP_PASSWORD in .env to enable email")
+        print("  👉 Set GMAIL_USER + GMAIL_APP_PASSWORD (or Gmail OAuth credentials) in .env to enable email")
 
 
 async def _send_via_resend(lead: dict, file_name: str, api_key: str):
@@ -100,6 +116,62 @@ def _send_via_gmail(lead: dict, file_name: str, gmail_user: str, gmail_pass: str
         server.sendmail(gmail_user, to_email, msg.as_string())
 
     print(f"  ✅ Email sent via Gmail SMTP to {to_email}")
+
+
+async def _send_via_gmail_api(lead: dict, file_name: str, client_id: str, client_secret: str, refresh_token: str, gmail_user: str):
+    """Send email using Gmail REST API via HTTPS."""
+    import httpx
+    
+    # 1. Exchange refresh token for access token
+    token_url = "https://oauth2.googleapis.com/token"
+    token_data = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        res = await client.post(token_url, data=token_data)
+        res.raise_for_status()
+        access_token = res.json()["access_token"]
+        
+        # 2. Build MIME message
+        to_email  = lead["email"]
+        pdf_path  = REPORTS_DIR / file_name
+
+        msg = MIMEMultipart("mixed")
+        msg["From"]    = f"SimpliFiQ Audit <{gmail_user}>"
+        msg["To"]      = to_email
+        msg["Subject"] = f"📊 Your Discovery Audit Report — {lead['companyName']}"
+
+        # HTML body
+        body = MIMEText(_build_email_html(lead), "html")
+        msg.attach(body)
+
+        # PDF attachment
+        with open(pdf_path, "rb") as f:
+            pdf_data = f.read()
+        attachment = MIMEBase("application", "octet-stream")
+        attachment.set_payload(pdf_data)
+        encoders.encode_base64(attachment)
+        attachment.add_header("Content-Disposition", f'attachment; filename="{file_name}"')
+        msg.attach(attachment)
+
+        # 3. Base64url encode the message
+        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        
+        # 4. Post message to Gmail API
+        gmail_send_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {"raw": raw_message}
+        
+        res_send = await client.post(gmail_send_url, headers=headers, json=payload)
+        res_send.raise_for_status()
+
+    print(f"  ✅ Email sent via Gmail REST API to {to_email}")
 
 
 def _log_fallback(lead: dict, file_name: str):
