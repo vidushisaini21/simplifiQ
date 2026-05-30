@@ -5,7 +5,7 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
 if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -58,11 +58,12 @@ async def submit_lead(lead: LeadInput, background_tasks: BackgroundTasks):
 
 
 @app.get("/api/report-status")
-async def report_status(email: str):
+async def report_status(email: str, request: Request):
     entry = lead_status.get(email)
     if not entry:
         return {"status": "not_found"}
-    pdf_url = f"http://localhost:8000/reports/{entry['file_name']}" if entry["file_name"] else None
+    base_url = str(request.base_url).rstrip('/')
+    pdf_url = f"{base_url}/reports/{entry['file_name']}" if entry["file_name"] else None
     return {"status": entry["status"], "pdfUrl": pdf_url, "error": entry.get("error")}
 
 
