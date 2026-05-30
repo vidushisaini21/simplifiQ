@@ -1,5 +1,5 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+# Use the official Microsoft Playwright image which has Python and all browser system dependencies pre-installed
+FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -9,18 +9,9 @@ ENV PYTHONUNBUFFERED=1 \
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies needed for Playwright and chromium
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy requirements and install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Playwright and its system dependencies for Chromium
-RUN playwright install --with-deps chromium
 
 # Copy project files
 COPY . .
